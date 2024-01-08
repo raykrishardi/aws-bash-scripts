@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 
 # This script will export each AWS WAF IP set match condition to a JSON file for backup
 # Requires the AWS CLI and jq
@@ -51,19 +52,18 @@ fi
 # http://docs.aws.amazon.com/cli/latest/userguide/cli-chap-getting-started.html#cli-multiple-profiles
 if [ $# -eq 0 ]; then
 	scriptname=`basename "$0"`
-	echo "Usage: ./$scriptname profile"
-	echo "Where profile is the AWS CLI profile name"
-	echo "Using default profile"
-	echo
-	profile=default
+	echo "Usage: ./$scriptname profile scope region"
+	exit 1
 else
 	profile=$1
 	SUBFOLDER=$SUBFOLDER-$1
+	scope=$2 # CLOUDFRONT or REGIONAL
+	region=$3 # use us-east-1 for CLOUDFRONT scope
 fi
 
 # Get list of all IP Sets
 function ListIPSets(){
-	ListIPSets=$(aws waf list-ip-sets --output=json --profile $profile 2>&1)
+	ListIPSets=$(aws wafv2 list-ip-sets --output=json --profile $profile --scope $scope --region $region 2>&1)
 	if [ ! $? -eq 0 ]; then
 		fail "$ListIPSets"
 	fi
@@ -81,7 +81,7 @@ function ListIPSets(){
 	if [ ! $? -eq 0 ]; then
 		fail "$IPSETNAMES"
 	fi
-	IPSETIDS=$(echo "$ParseIPSets" | jq '.IPSetId' | cut -d \" -f2)
+	IPSETIDS=$(echo "$ParseIPSets" | jq '.Id' | cut -d \" -f2)
 	if [ ! $? -eq 0 ]; then
 		fail "$IPSETIDS"
 	fi
@@ -103,7 +103,7 @@ function ListIPSets(){
 
 # Get a single IP Set
 function GetIPSet(){
-	GetIPSet=$(aws waf get-ip-set --ip-set-id "$IPSETID" --output=json --profile $profile 2>&1)
+	GetIPSet=$(aws wafv2 get-ip-set --id "$IPSETID" --name "$IPSETNAME" --output=json --profile $profile --scope $scope --region $region 2>&1)
 	if [ ! $? -eq 0 ]; then
 		fail "$GetIPSet"
 	fi
